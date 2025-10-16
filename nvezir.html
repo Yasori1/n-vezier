@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>N-Vezir Çözücü - Backtracking Algorithm</title>
+    <title>N-Vezir Çözücü - Backtracking Algorithm (Çakışma Vurgulu)</title>
     <style>
+        /* CSS KODU */
         * {
             margin: 0;
             padding: 0;
@@ -142,11 +143,15 @@
         }
 
         .step-info.backtrack {
-            /* Bu stil backtrack adımları gizlendiği için nadiren görünecektir,
-               ancak istenirse aktif edilebilir. */
-            background: rgba(239, 68, 68, 0.1);
+            background: rgba(251, 146, 60, 0.1);
+            border-color: rgba(251, 146, 60, 0.3);
+            color: #fb923c;
+        }
+
+        .step-info.conflict {
+            background: rgba(239, 68, 68, 0.1); 
             border-color: rgba(239, 68, 68, 0.3);
-            color: #f87171;
+            color: #f87171; 
         }
 
         .step-info.complete {
@@ -184,10 +189,40 @@
         .cell.dark {
             background: #6b7280;
         }
+        
+        /* GÖRSEL HATA AYIKLAMA STİLLERİ */
+        
+        /* Denenen konumu vurgula (Yeşil) */
+        .cell.attempted {
+            background: #10b981; 
+            animation: pulse 0.4s infinite alternate;
+        }
+
+        /* Çakışma olan konumu vurgula (Kırmızı) */
+        .cell.conflict-zone {
+            background: #ef4444 !important; 
+        }
+        
+        /* Çakışmaya neden olan vezir (Turuncu Sınır) */
+        .cell.conflicting-queen {
+            border: 3px solid #f97316; 
+            box-shadow: 0 0 10px #f97316;
+        }
+
+        /* YENİ STİL: Yerleşmiş vezirlerin arka planı (Yeşil) */
+        .cell.placed-queen {
+            background: rgba(34, 197, 94, 0.4) !important; /* Yeşil ton */
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.8; }
+            to { opacity: 1; }
+        }
 
         .queen {
             animation: fadeIn 0.4s ease-out;
             filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+            color: #1a1a1a;
         }
 
         @keyframes fadeIn {
@@ -258,16 +293,16 @@
 <body>
     <div class="container">
         <h1>♛ N-Vezir Problemi</h1>
-        <p class="subtitle">Backtracking algoritması ile adım adım çözüm (Sadece yerleştirme adımları gösterilir)</p>
+        <p class="subtitle">Adım adım çözüm: Deneme, Çakışma Kontrolü (Dikey/Çapraz) ve Geri İzleme.</p>
 
         <div class="controls">
             <button class="icon-btn" onclick="decrementN()">−</button>
-            <input type="number" id="nInput" value="8" min="4" max="12" onchange="updateN()">
+            <input type="number" id="nInput" value="4" min="4" max="12" onchange="updateN()">
             <button class="icon-btn" onclick="incrementN()">+</button>
         </div>
 
         <div class="controls">
-            <button onclick="solve()" id="solveBtn">✨ Çöz</button>
+            <button onclick="solve()" id="solveBtn">✨ Çözümü Başlat</button>
             <button onclick="reset()" id="resetBtn" style="display: none;">🔄 Yeni Çözüm</button>
         </div>
 
@@ -284,22 +319,26 @@
 
         <div class="legend">
             <div class="legend-item">
-                <div class="legend-box" style="background: #e5e7eb;"></div>
-                <span>Açık Kare</span>
+                <div class="legend-box" style="background: rgba(34, 197, 94, 0.4); border-color: #4ade80;"></div>
+                <span>Yerleşmiş Vezir</span>
             </div>
             <div class="legend-item">
-                <div class="legend-box" style="background: #6b7280;"></div>
-                <span>Koyu Kare</span>
+                <div class="legend-box" style="background: #10b981;"></div>
+                <span>Güvenli Deneme</span>
             </div>
             <div class="legend-item">
-                <span style="font-size: 24px;">♛</span>
-                <span>Vezir</span>
+                <div class="legend-box" style="background: #ef4444;"></div>
+                <span>Çakışan Konum</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="border: 3px solid #f97316;"></div>
+                <span>Çakışma Kaynağı</span>
             </div>
         </div>
     </div>
 
     <script>
-        let n = 8;
+        let n = 4;
         let steps = [];
         let currentStep = 0;
         let isPlaying = false;
@@ -329,77 +368,99 @@
             }
         }
 
-        function solveNQueens(size) {
-            const solutions = [];
-            // queens[i] = j demek, i. satırda vezir j. sütunda demektir.
-            const queens = new Array(size).fill(-1); 
-
-            function isSafe(row, col) {
-                // Daha önceki vezirlerle (i < row) çakışma var mı kontrol eder
-                for (let i = 0; i < row; i++) {
-                    // Aynı sütun veya aynı çaprazda mı kontrol eder.
-                    if (queens[i] === col || Math.abs(i - row) === Math.abs(queens[i] - col)) {
-                        return false;
+        function hasConflict(queens, row, col) {
+            let conflictSource = null;
+            for (let i = 0; i < row; i++) {
+                if (queens[i] !== -1) {
+                    // DİKEY KONTROL
+                    if (queens[i] === col) {
+                        conflictSource = {row: i, col: queens[i], type: 'Dikey'};
+                        return conflictSource;
+                    }
+                    // ÇAPRAZ KONTROL
+                    else if (Math.abs(i - row) === Math.abs(queens[i] - col)) {
+                        conflictSource = {row: i, col: queens[i], type: 'Çapraz'};
+                        return conflictSource;
                     }
                 }
-                return true;
             }
+            return false; 
+        }
 
-            // Geri izleme fonksiyonu. Verilen satırda vezir yerleştirmeye çalışır.
+        function solveNQueens(size) {
+            const solutions = [];
+            const queens = new Array(size).fill(-1); 
+            let totalSteps = 0;
+
             function backtrack(row) {
                 if (row === size) {
-                    // Temel Durum: Tüm vezirler yerleştirildi. Bir çözüm bulundu.
                     solutions.push({
                         queens: [...queens],
                         action: 'complete',
-                        description: `✅ Çözüm tamamlandı! ${size} vezir güvenli şekilde yerleştirildi.`
+                        description: `✅ Çözüm bulundu! Toplam adım: ${totalSteps}`,
+                        attempted: null, 
+                        conflictSource: null
                     });
-                    // Çözüm bulunduğunda true döndürerek denemeyi sonlandır.
                     return true; 
                 }
 
-                // Yinelemeli Adım: Mevcut satırdaki tüm sütunları (col) sırayla dener.
                 for (let col = 0; col < size; col++) {
-                    // Bu noktada vezir güvenli mi?
-                    if (isSafe(row, col)) {
-                        // 1. ADIM: Veziri yerleştir
+                    totalSteps++;
+                    
+                    const conflictSource = hasConflict(queens, row, col);
+
+                    if (!conflictSource) {
+                        // 1. ADIM: GÜVENLİ YERLEŞTİRME
                         queens[row] = col;
                         
-                        // SADECE BAŞARILI YERLEŞTİRME ADIMINI KAYDET
                         solutions.push({
                             queens: [...queens],
                             action: 'place',
-                            description: `✨ Satır ${row + 1}, Sütun ${col + 1}: Vezir yerleştirildi`
+                            description: `✨ Vezir ${row + 1}, Satır ${row + 1}, Sütun ${col + 1}: Güvenli. Yerleştirildi.`,
+                            attempted: {row, col, safe: true}, 
+                            conflictSource: null
                         });
 
-                        // 2. ADIM: Bir sonraki satıra geç (Özyinelemeli çağrı)
                         if (backtrack(row + 1)) {
-                            // Eğer alt çağrılardan bir çözüm geldiyse, buradan da true döndür ve çık.
                             return true; 
                         }
 
-                        // 3. ADIM: Geri İzleme (Backtrack)
-                        // Çözüm bulunamadıysa, veziri geri al (tahtadan kaldır)
+                        // 3. ADIM: GERİ ALMA (BACKTRACK)
+                        const prevCol = queens[row]; 
+                        totalSteps++;
+                        solutions.push({
+                            queens: [...queens], 
+                            action: 'backtrack',
+                            description: `⬅️ Vezir ${row + 1}, Satır ${row + 1}, Sütun ${prevCol + 1}: Tıkandı. Kaldırılıyor.`,
+                            attempted: null,
+                            conflictSource: null
+                        });
+                        
                         queens[row] = -1;
                         
-                        // GERİ ALMA (BACKTRACK) ADIMLARI GÖRSELLEŞTİRME İÇİN KAYDEDİLMEZ.
-                        // (Bu, adımların sayısını azaltır ve daha "normal" görünmesini sağlar.)
-                    } 
+                    } else {
+                        // 2. ADIM: ÇAKIŞMA/ATLANAN DENEME
+                        solutions.push({
+                            queens: [...queens],
+                            action: 'conflict',
+                            description: `⚠️ Vezir ${row + 1}, Satır ${row + 1}, Sütun ${col + 1}: ${conflictSource.type} çakışma!`,
+                            attempted: {row, col, safe: false},
+                            conflictSource: conflictSource
+                        });
+                    }
                 }
                 
-                // Bu satırda hiçbir çözüm bulunamadıysa false döndür
                 return false; 
             }
 
-            // Çözüm sürecini başlat
             backtrack(0); 
-            // Sadece ilk çözümü içeren adımları döndürür
             return solutions; 
         }
 
+        // ********** GÖRSELLEŞTİRME VE KONTROL FONKSİYONLARI **********
+
         function solve() {
             steps = solveNQueens(n);
-            
             currentStep = 0;
             document.getElementById('solveBtn').style.display = 'none';
             document.getElementById('resetBtn').style.display = 'inline-block';
@@ -418,7 +479,7 @@
             document.getElementById('resetBtn').style.display = 'none';
             document.getElementById('stepControls').style.display = 'none';
             document.getElementById('stepInfo').style.display = 'none';
-            document.getElementById('board').innerHTML = '';
+            updateDisplay(); 
         }
 
         function prevStep() {
@@ -454,36 +515,30 @@
                     if (currentStep < steps.length - 1) {
                         nextStep();
                     } else {
-                        // Son adıma ulaşıldı
                         isPlaying = false;
                         playBtn.innerHTML = '▶';
                         clearInterval(playInterval);
                     }
-                }, 400); 
+                }, 500); 
             } else {
                 playBtn.innerHTML = '▶';
                 clearInterval(playInterval);
             }
         }
-
+        
+        // GÜNCELLENMİŞ GÖRÜNÜM FONKSİYONU
         function updateDisplay() {
-            if (steps.length === 0) {
-                document.getElementById('board').innerHTML = '';
-                // Çözüm bulunamadıysa uyarı verebiliriz (ama n>=4 için her zaman bulunur)
-                if (n >= 4) {
-                    document.getElementById('stepInfo').style.display = 'block';
-                    document.getElementById('stepInfo').textContent = `N=${n} için çözümü başlatmak için "Çöz" butonuna basın.`;
-                    document.getElementById('stepInfo').className = 'step-info';
-                }
-                return;
-            }
-
-            const step = steps[currentStep];
             const board = document.getElementById('board');
             board.innerHTML = '';
             
             const cellSize = n > 10 ? 55 : 70;
             board.style.gridTemplateColumns = `repeat(${n}, ${cellSize}px)`;
+            
+            const step = steps[currentStep];
+            const currentQueens = step ? step.queens : new Array(n).fill(-1);
+            const attemptedPos = step ? step.attempted : null;
+            const conflictSource = step ? step.conflictSource : null;
+
 
             for (let row = 0; row < n; row++) {
                 for (let col = 0; col < n; col++) {
@@ -493,28 +548,53 @@
                     cell.style.height = cellSize + 'px';
                     cell.style.fontSize = (cellSize * 0.7) + 'px';
                     
-                    if (step.queens[row] === col) {
+                    // Vezir Yerleştirme
+                    if (currentQueens[row] === col) {
                         const queen = document.createElement('span');
                         queen.textContent = '♛';
                         queen.className = 'queen';
                         cell.appendChild(queen);
+                        // YENİ ARKA PLAN RENGİ İÇİN SINIF EKLEME
+                        cell.classList.add('placed-queen');
                     }
                     
+                    // Çakışma Kaynağını İşaretle
+                    if (conflictSource && conflictSource.row === row && conflictSource.col === col) {
+                        cell.classList.add('conflicting-queen');
+                    }
+                    
+                    // Denenen kareyi vurgula
+                    if (attemptedPos && attemptedPos.row === row && attemptedPos.col === col) {
+                        if (attemptedPos.safe === false) {
+                            cell.classList.add('conflict-zone');
+                        } else {
+                            cell.classList.add('attempted');
+                        }
+                    }
+
                     board.appendChild(cell);
                 }
             }
 
+            // Adım Bilgisini Güncelle
             const stepInfo = document.getElementById('stepInfo');
-            stepInfo.textContent = step.description;
-            stepInfo.className = 'step-info ' + step.action;
-
-            document.getElementById('stepCounter').textContent = `Adım ${currentStep + 1} / ${steps.length}`;
-            document.getElementById('prevBtn').disabled = currentStep === 0;
-            document.getElementById('nextBtn').disabled = currentStep >= steps.length - 1;
+            if (steps.length > 0) {
+                stepInfo.textContent = step.description;
+                stepInfo.className = 'step-info ' + step.action;
+                stepInfo.style.display = 'block';
+                document.getElementById('stepCounter').textContent = `Adım ${currentStep + 1} / ${steps.length}`;
+                document.getElementById('prevBtn').disabled = currentStep === 0;
+                document.getElementById('nextBtn').disabled = currentStep >= steps.length - 1;
+            } else {
+                stepInfo.style.display = 'block';
+                stepInfo.textContent = `N=${n} için çözümü başlatmak için "Çözümü Başlat" butonuna basın.`;
+                stepInfo.className = 'step-info';
+                document.getElementById('stepControls').style.display = 'none';
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            updateN(); 
+            updateN();
         });
     </script>
 </body>
