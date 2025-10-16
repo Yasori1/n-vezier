@@ -142,6 +142,8 @@
         }
 
         .step-info.backtrack {
+            /* Bu stil backtrack adımları gizlendiği için nadiren görünecektir,
+               ancak istenirse aktif edilebilir. */
             background: rgba(239, 68, 68, 0.1);
             border-color: rgba(239, 68, 68, 0.3);
             color: #f87171;
@@ -256,7 +258,7 @@
 <body>
     <div class="container">
         <h1>♛ N-Vezir Problemi</h1>
-        <p class="subtitle">Backtracking algoritması ile adım adım çözüm</p>
+        <p class="subtitle">Backtracking algoritması ile adım adım çözüm (Sadece yerleştirme adımları gösterilir)</p>
 
         <div class="controls">
             <button class="icon-btn" onclick="decrementN()">−</button>
@@ -329,10 +331,13 @@
 
         function solveNQueens(size) {
             const solutions = [];
-            const queens = new Array(size).fill(-1);
+            // queens[i] = j demek, i. satırda vezir j. sütunda demektir.
+            const queens = new Array(size).fill(-1); 
 
             function isSafe(row, col) {
+                // Daha önceki vezirlerle (i < row) çakışma var mı kontrol eder
                 for (let i = 0; i < row; i++) {
+                    // Aynı sütun veya aynı çaprazda mı kontrol eder.
                     if (queens[i] === col || Math.abs(i - row) === Math.abs(queens[i] - col)) {
                         return false;
                     }
@@ -340,44 +345,61 @@
                 return true;
             }
 
+            // Geri izleme fonksiyonu. Verilen satırda vezir yerleştirmeye çalışır.
             function backtrack(row) {
                 if (row === size) {
+                    // Temel Durum: Tüm vezirler yerleştirildi. Bir çözüm bulundu.
                     solutions.push({
                         queens: [...queens],
                         action: 'complete',
                         description: `✅ Çözüm tamamlandı! ${size} vezir güvenli şekilde yerleştirildi.`
                     });
-                    return true;
+                    // Çözüm bulunduğunda true döndürerek denemeyi sonlandır.
+                    return true; 
                 }
 
+                // Yinelemeli Adım: Mevcut satırdaki tüm sütunları (col) sırayla dener.
                 for (let col = 0; col < size; col++) {
+                    // Bu noktada vezir güvenli mi?
                     if (isSafe(row, col)) {
+                        // 1. ADIM: Veziri yerleştir
                         queens[row] = col;
+                        
+                        // SADECE BAŞARILI YERLEŞTİRME ADIMINI KAYDET
                         solutions.push({
                             queens: [...queens],
                             action: 'place',
                             description: `✨ Satır ${row + 1}, Sütun ${col + 1}: Vezir yerleştirildi`
                         });
 
-                        if (backtrack(row + 1)) return true;
+                        // 2. ADIM: Bir sonraki satıra geç (Özyinelemeli çağrı)
+                        if (backtrack(row + 1)) {
+                            // Eğer alt çağrılardan bir çözüm geldiyse, buradan da true döndür ve çık.
+                            return true; 
+                        }
 
+                        // 3. ADIM: Geri İzleme (Backtrack)
+                        // Çözüm bulunamadıysa, veziri geri al (tahtadan kaldır)
                         queens[row] = -1;
-                        solutions.push({
-                            queens: [...queens],
-                            action: 'backtrack',
-                            description: `↩️ Satır ${row + 1}, Sütun ${col + 1}: Geri adım (backtrack)`
-                        });
-                    }
+                        
+                        // GERİ ALMA (BACKTRACK) ADIMLARI GÖRSELLEŞTİRME İÇİN KAYDEDİLMEZ.
+                        // (Bu, adımların sayısını azaltır ve daha "normal" görünmesini sağlar.)
+                    } 
                 }
-                return false;
+                
+                // Bu satırda hiçbir çözüm bulunamadıysa false döndür
+                return false; 
             }
 
-            backtrack(0);
-            return solutions;
+            // Çözüm sürecini başlat
+            backtrack(0); 
+            // Sadece ilk çözümü içeren adımları döndürür
+            return solutions; 
         }
 
         function solve() {
             steps = solveNQueens(n);
+            
             currentStep = 0;
             document.getElementById('solveBtn').style.display = 'none';
             document.getElementById('resetBtn').style.display = 'inline-block';
@@ -391,6 +413,7 @@
             currentStep = 0;
             isPlaying = false;
             if (playInterval) clearInterval(playInterval);
+            document.getElementById('playBtn').innerHTML = '▶';
             document.getElementById('solveBtn').style.display = 'inline-block';
             document.getElementById('resetBtn').style.display = 'none';
             document.getElementById('stepControls').style.display = 'none';
@@ -399,6 +422,7 @@
         }
 
         function prevStep() {
+            if (isPlaying) togglePlay(); 
             if (currentStep > 0) {
                 currentStep--;
                 updateDisplay();
@@ -409,24 +433,33 @@
             if (currentStep < steps.length - 1) {
                 currentStep++;
                 updateDisplay();
+            } else {
+                if (isPlaying) togglePlay();
             }
         }
 
         function togglePlay() {
-            isPlaying = !isPlaying;
             const playBtn = document.getElementById('playBtn');
+            
+            if (currentStep >= steps.length - 1 && steps.length > 0) {
+                currentStep = 0; 
+                updateDisplay();
+            }
+
+            isPlaying = !isPlaying;
             
             if (isPlaying) {
                 playBtn.innerHTML = '⏸';
-                playInterval = setInterval(() => {
+                playInterval = setInterval(() => { 
                     if (currentStep < steps.length - 1) {
                         nextStep();
                     } else {
+                        // Son adıma ulaşıldı
                         isPlaying = false;
                         playBtn.innerHTML = '▶';
                         clearInterval(playInterval);
                     }
-                }, 600);
+                }, 400); 
             } else {
                 playBtn.innerHTML = '▶';
                 clearInterval(playInterval);
@@ -434,6 +467,17 @@
         }
 
         function updateDisplay() {
+            if (steps.length === 0) {
+                document.getElementById('board').innerHTML = '';
+                // Çözüm bulunamadıysa uyarı verebiliriz (ama n>=4 için her zaman bulunur)
+                if (n >= 4) {
+                    document.getElementById('stepInfo').style.display = 'block';
+                    document.getElementById('stepInfo').textContent = `N=${n} için çözümü başlatmak için "Çöz" butonuna basın.`;
+                    document.getElementById('stepInfo').className = 'step-info';
+                }
+                return;
+            }
+
             const step = steps[currentStep];
             const board = document.getElementById('board');
             board.innerHTML = '';
@@ -441,7 +485,6 @@
             const cellSize = n > 10 ? 55 : 70;
             board.style.gridTemplateColumns = `repeat(${n}, ${cellSize}px)`;
 
-            // Render board
             for (let row = 0; row < n; row++) {
                 for (let col = 0; col < n; col++) {
                     const cell = document.createElement('div');
@@ -461,17 +504,18 @@
                 }
             }
 
-            // Update step info
             const stepInfo = document.getElementById('stepInfo');
             stepInfo.textContent = step.description;
             stepInfo.className = 'step-info ' + step.action;
 
-            // Update controls
             document.getElementById('stepCounter').textContent = `Adım ${currentStep + 1} / ${steps.length}`;
             document.getElementById('prevBtn').disabled = currentStep === 0;
             document.getElementById('nextBtn').disabled = currentStep >= steps.length - 1;
-            document.getElementById('playBtn').disabled = currentStep >= steps.length - 1;
         }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateN(); 
+        });
     </script>
 </body>
 </html>
